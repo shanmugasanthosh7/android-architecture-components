@@ -26,6 +26,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.support.test.InstrumentationRegistry
+import android.support.test.filters.SdkSuppress
 import android.support.test.filters.SmallTest
 import android.support.test.runner.AndroidJUnit4
 import androidx.work.WorkManager
@@ -62,7 +63,7 @@ class ImageOperationsTest {
     private lateinit var mContext: Context
     private lateinit var mTargetContext: Context
     private lateinit var mLifeCycleOwner: LifecycleOwner
-    private lateinit var mWorkManager: WorkManager
+    private var mWorkManager: WorkManager? = null
 
     @Before
     fun setUp() {
@@ -87,12 +88,12 @@ class ImageOperationsTest {
         val latch = CountDownLatch(1)
         val outputs: MutableList<Uri> = mutableListOf()
 
-        imageOperations.continuation.statuses?.observe(mLifeCycleOwner, Observer {
+        imageOperations.continuation.statuses.observe(mLifeCycleOwner, Observer {
             val statuses = it ?: return@Observer
             val finished = statuses.all { it.state.isFinished }
             if (finished) {
                 val outputUris = statuses.map {
-                    val output = it.outputData.getString(KEY_IMAGE_URI, DEFAULT_IMAGE_URI)
+                    val output = it.outputData.getString(KEY_IMAGE_URI) ?: DEFAULT_IMAGE_URI
                     Uri.parse(output)
                 }.filter {
                     it != Uri.EMPTY
@@ -108,6 +109,7 @@ class ImageOperationsTest {
     }
 
     @Test
+    @SdkSuppress(maxSdkVersion = 22)
     fun testImageOperationsChain() {
         val imageOperations = ImageOperations.Builder(IMAGE)
                 .setApplyWaterColor(true)
@@ -123,12 +125,12 @@ class ImageOperationsTest {
         val latch = CountDownLatch(2)
         val outputs: MutableList<Uri> = mutableListOf()
 
-        imageOperations.continuation.statuses?.observe(mLifeCycleOwner, Observer {
+        imageOperations.continuation.statuses.observe(mLifeCycleOwner, Observer {
             val statuses = it ?: return@Observer
             val finished = statuses.all { it.state.isFinished }
             if (finished) {
                 val outputUris = statuses.map {
-                    val output = it.outputData.getString(KEY_IMAGE_URI, DEFAULT_IMAGE_URI)
+                    val output = it.outputData.getString(KEY_IMAGE_URI) ?: DEFAULT_IMAGE_URI
                     Uri.parse(output)
                 }.filter {
                     it != Uri.EMPTY
@@ -139,13 +141,13 @@ class ImageOperationsTest {
         })
 
         var outputUri: Uri? = null
-        mWorkManager.getStatusesByTag(TAG_OUTPUT).observe(mLifeCycleOwner, Observer {
+        mWorkManager?.getStatusesByTag(TAG_OUTPUT)?.observe(mLifeCycleOwner, Observer {
             val statuses = it ?: return@Observer
             val finished = statuses.all { it.state.isFinished }
             if (finished) {
                 outputUri =
                         statuses.firstOrNull()
-                                ?.outputData?.getString(KEY_IMAGE_URI, DEFAULT_IMAGE_URI)
+                                ?.outputData?.getString(KEY_IMAGE_URI)
                                 ?.let { Uri.parse(it) }
                 latch.countDown()
             }
